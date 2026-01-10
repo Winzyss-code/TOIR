@@ -1,14 +1,28 @@
+import { useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { auth } from "../app/auth"
 import { User, Lock, LogIn } from "lucide-react"
 
 export default function Login() {
   const navigate = useNavigate()
+  const [username, setUsername] = useState("")
+  const [password, setPassword] = useState("")
+  const [error, setError] = useState("")
+  const [loading, setLoading] = useState(false)
 
-  const submit = (e) => {
+  const submit = async (e) => {
     e.preventDefault()
-    auth.login()
-    navigate("/", { replace: true })
+    setError("")
+    setLoading(true)
+
+    try {
+      await auth.login(username, password)
+      navigate("/", { replace: true })
+    } catch (err) {
+      setError(err.response?.data?.error || "Ошибка входа")
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -27,6 +41,12 @@ export default function Login() {
           </p>
         </div>
 
+        {error && (
+          <div className="bg-red-50 text-red-600 text-sm p-3 rounded-md">
+            {error}
+          </div>
+        )}
+
         <div className="space-y-1">
           <label className="text-sm text-gray-600">Логин</label>
           <div className="relative">
@@ -34,6 +54,8 @@ export default function Login() {
             <input
               className="w-full pl-9 pr-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
               placeholder="Введите логин"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
               required
             />
           </div>
@@ -47,18 +69,20 @@ export default function Login() {
               type="password"
               className="w-full pl-9 pr-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
               placeholder="Введите пароль"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
               required
             />
           </div>
         </div>
 
-        
         <button
           type="submit"
-          className="w-full flex items-center justify-center gap-2 bg-slate-900 text-white py-2.5 rounded-md text-sm font-medium hover:bg-slate-800 transition"
+          disabled={loading}
+          className="w-full flex items-center justify-center gap-2 bg-slate-900 text-white py-2.5 rounded-md text-sm font-medium hover:bg-slate-800 transition disabled:opacity-50"
         >
           <LogIn size={16} />
-          Войти
+          {loading ? "Вход..." : "Войти"}
         </button>
 
         <p className="text-xs text-center text-gray-400">

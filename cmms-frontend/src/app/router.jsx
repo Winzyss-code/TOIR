@@ -6,6 +6,7 @@ import Login from "../pages/Login"
 import Dashboard from "../pages/Dashboard"
 import Equipment from "../pages/Equipment"
 import WorkOrders from "../pages/WorkOrders"
+import MaintenancePlans from "../pages/MaintenancePlans"
 import Reports from "../pages/Reports"
 export const router = createBrowserRouter([
   {
@@ -24,6 +25,7 @@ export const router = createBrowserRouter([
       { index: true, element: <Dashboard /> },
       { path: "equipment", element: <Equipment /> },
       { path: "work-orders", element: <WorkOrders /> },
+      { path: "maintenance-plans", element: <MaintenancePlans /> },
       { path: "reports", element: <Reports /> },
 
     ],

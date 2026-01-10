@@ -1,199 +1,346 @@
-import { useEffect, useMemo, useState } from "react"
-import EquipmentTree from "../components/EquipmentTree"
-import RenameModal from "../components/RenameModal"
+import { useEffect, useState } from "react"
+import { Plus, Trash2, Edit2, Package } from "lucide-react"
 import { EquipmentTreeService } from "../services/equipmentTree.service"
-import { Package } from "lucide-react"
-
-function findNode(root, id) {
-  if (!root) return null
-  if (root.id === id) return root
-  for (const c of root.children || []) {
-    const r = findNode(c, id)
-    if (r) return r
-  }
-  return null
-}
+import Badge from "../components/Badge"
 
 export default function Equipment() {
   const [tree, setTree] = useState(null)
-  const [selectedId, setSelectedId] = useState("root")
-
-  const [renameOpen, setRenameOpen] = useState(false)
-  const [renameTargetId, setRenameTargetId] = useState(null)
+  const [selectedId, setSelectedId] = useState(null)
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [editingId, setEditingId] = useState(null)
+  
+  const [formData, setFormData] = useState({
+    name: '',
+    node_type: 'asset',
+    code: '',
+    inv: '',
+    serial: '',
+    location: ''
+  })
 
   useEffect(() => {
-    EquipmentTreeService.getTree().then((t) => {
-      setTree(t)
-      setSelectedId(t?.id || "root")
-    })
+    loadTree()
   }, [])
 
-  const selected = useMemo(
-    () => (tree ? findNode(tree, selectedId) : null),
-    [tree, selectedId]
-  )
-
-  const openRename = (id) => {
-    setRenameTargetId(id)
-    setRenameOpen(true)
+  const loadTree = async () => {
+    try {
+      const data = await EquipmentTreeService.getTree()
+      setTree(data)
+      if (!selectedId) setSelectedId(data?.id)
+    } catch (err) {
+      console.error('Error loading equipment:', err)
+    }
   }
 
-  const addFolder = async (parentId) => {
-    const parent = findNode(tree, parentId) || tree
-    const newNode = await EquipmentTreeService.addNode({
-      parentId: parent.id,
-      node: { name: "Новая папка", type: "folder", children: [] },
+  const findNode = (node, id) => {
+    if (!node) return null
+    if (node.id === id) return node
+    if (node.children) {
+      for (const child of node.children) {
+        const found = findNode(child, id)
+        if (found) return found
+      }
+    }
+    return null
+  }
+
+  const selectedNode = tree ? findNode(tree, selectedId) : null
+
+  const handleAdd = (type) => {
+    setFormData({
+      name: type === 'folder' ? 'Новая папка' : 'Новое оборудование',
+      node_type: type,
+      code: '',
+      inv: '',
+      serial: '',
+      location: ''
     })
-    const next = await EquipmentTreeService.getTree()
-    setTree(next)
-    setSelectedId(newNode.id)
-    openRename(newNode.id)
+    setEditingId(null)
+    setIsModalOpen(true)
   }
 
-  const addAsset = async (parentId) => {
-    const parent = findNode(tree, parentId) || tree
-    const newNode = await EquipmentTreeService.addNode({
-      parentId: parent.id,
-      node: {
-        name: "Новый объект",
-        type: "asset",
-        code: "",
-        inv: "",
-        serial: "",
-        location: "",
-        children: [],
-      },
+  const handleEdit = () => {
+    if (!selectedNode || selectedNode.id === 'root') return
+    setFormData({
+      name: selectedNode.name,
+      node_type: selectedNode.type,
+      code: selectedNode.code || '',
+      inv: selectedNode.inv || '',
+      serial: selectedNode.serial || '',
+      location: selectedNode.location || ''
     })
-    const next = await EquipmentTreeService.getTree()
-    setTree(next)
-    setSelectedId(newNode.id)
-    openRename(newNode.id)
+    setEditingId(selectedNode.id)
+    setIsModalOpen(true)
   }
 
-  const rename = async (id, name) => {
-    await EquipmentTreeService.renameNode({ id, name })
-    setTree(await EquipmentTreeService.getTree())
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+
+    try {
+      if (editingId) {
+        // Update
+        await EquipmentTreeService.updateNode({
+          id: editingId,
+          patch: {
+            name: formData.name,
+            code: formData.code || null,
+            inv: formData.inv || null,
+            serial: formData.serial || null,
+            location: formData.location || null
+          }
+        })
+        alert('Оборудование обновлено')
+      } else {
+        // Create
+        const parentId = selectedId || 'root'
+        await EquipmentTreeService.addNode({
+          parentId,
+          node: {
+            name: formData.name,
+            type: formData.node_type,
+            code: formData.code || null,
+            inv: formData.inv || null,
+            serial: formData.serial || null,
+            location: formData.location || null,
+            children: []
+          }
+        })
+        alert('Оборудование создано')
+      }
+
+      setIsModalOpen(false)
+      loadTree()
+    } catch (err) {
+      console.error('Error saving:', err)
+      alert('Ошибка при сохранении')
+    }
   }
 
-  const remove = async (id) => {
-    if (id === "root") return
-    const ok = confirm("Удалить выбранный узел и все дочерние элементы?")
-    if (!ok) return
-    await EquipmentTreeService.deleteNode({ id })
-    const next = await EquipmentTreeService.getTree()
-    setTree(next)
-    setSelectedId("root")
+  const handleDelete = async () => {
+    if (!selectedNode || selectedNode.id === 'root') return
+    if (!confirm('Удалить это оборудование и все его компоненты?')) return
+
+    try {
+      await EquipmentTreeService.deleteNode({ id: selectedNode.id })
+      alert('Оборудование удалено')
+      setSelectedId('root')
+      loadTree()
+    } catch (err) {
+      console.error('Error deleting:', err)
+      alert('Ошибка при удалении')
+    }
   }
 
-  const reset = async () => {
-    const ok = confirm("Сбросить дерево к исходному шаблону?")
-    if (!ok) return
-    const next = await EquipmentTreeService.reset()
-    setTree(next)
-    setSelectedId("root")
-  }
+  const renderTree = (node, depth = 0) => {
+    if (!node) return null
 
-  const onMove = async ({ dragIds, parentId, index }) => {
-    // Arborist move event gives you IDs; simplest backend-ready approach:
-    // we re-build tree using its own state would be more complex.
-    // For MVP: disable move OR implement later.
-    // For now: show message.
-    console.log("move:", { dragIds, parentId, index })
-    alert("Drag&drop перемещение добавим следующим шагом (сейчас только CRUD).")
-  }
+    const isSelected = node.id === selectedId
+    const isAsset = node.type === 'asset'
 
-  const updateSelectedField = async (field, value) => {
-    if (!selected?.id || selected.id === "root") return
-    await EquipmentTreeService.updateNode({
-      id: selected.id,
-      patch: { [field]: value },
-    })
-    setTree(await EquipmentTreeService.getTree())
-  }
+    return (
+      <div key={node.id} style={{ marginLeft: `${depth * 20}px` }}>
+        <div
+          onClick={() => setSelectedId(node.id)}
+          className={`py-2 px-3 rounded cursor-pointer flex items-center gap-2 ${
+            isSelected ? 'bg-blue-100 border-l-4 border-blue-600' : 'hover:bg-gray-100'
+          }`}
+        >
+          <Package size={18} className={isAsset ? 'text-orange-500' : 'text-gray-500'} />
+          <div className="flex-1">
+            <div className="font-medium">{node.name}</div>
+            {isAsset && node.code && (
+              <div className="text-xs text-gray-500">{node.code}</div>
+            )}
+          </div>
+          {isAsset && <Badge color="orange">{node.type}</Badge>}
+        </div>
 
-  if (!tree) return null
+        {node.children && node.children.map(child => renderTree(child, depth + 1))}
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold">Оборудование</h1>
-        <p className="text-sm text-gray-500">
-          Дерево оборудования (папки + объекты) и карточка выбранного элемента
-        </p>
-      </div>
-
-      <div className="grid grid-cols-12 gap-6">
-        {/* Tree */}
-        <div className="col-span-12 lg:col-span-5">
-          <EquipmentTree
-            data={tree}
-            selectedId={selectedId}
-            onSelect={setSelectedId}
-            onAddFolder={addFolder}
-            onAddAsset={addAsset}
-            onRename={openRename}
-            onDelete={remove}
-            onReset={reset}
-            onMove={onMove}
-          />
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-semibold flex items-center gap-2">
+            <Package className="w-5 h-5 text-blue-600" />
+            Оборудование
+          </h1>
+          <p className="text-sm text-gray-500">Иерархия оборудования и компонентов</p>
         </div>
 
-        {/* Details */}
-        <div className="col-span-12 lg:col-span-7 bg-white border rounded-xl overflow-hidden">
-          <div className="px-4 py-3 border-b bg-gray-50 flex items-center gap-2">
-            <Package size={18} className="text-slate-500" />
-            <div className="font-semibold text-sm">Карточка объекта</div>
-          </div>
+        <div className="flex gap-2">
+          {selectedNode && selectedNode.id !== 'root' && (
+            <button
+              onClick={handleDelete}
+              className="flex items-center gap-2 bg-red-600 text-white px-3 py-2 rounded-md text-sm hover:bg-red-700"
+            >
+              <Trash2 size={16} />
+              Удалить
+            </button>
+          )}
+          {selectedNode && selectedNode.id !== 'root' && (
+            <button
+              onClick={handleEdit}
+              className="flex items-center gap-2 bg-blue-600 text-white px-3 py-2 rounded-md text-sm hover:bg-blue-700"
+            >
+              <Edit2 size={16} />
+              Редактировать
+            </button>
+          )}
+          <button
+            onClick={() => handleAdd('folder')}
+            className="flex items-center gap-2 bg-slate-600 text-white px-3 py-2 rounded-md text-sm hover:bg-slate-700"
+          >
+            <Plus size={16} />
+            Папка
+          </button>
+          <button
+            onClick={() => handleAdd('asset')}
+            className="flex items-center gap-2 bg-slate-900 text-white px-3 py-2 rounded-md text-sm hover:bg-slate-800"
+          >
+            <Plus size={16} />
+            Оборудование
+          </button>
+        </div>
+      </div>
 
-          <div className="p-4 space-y-4">
-            <div>
-              <div className="text-xs text-gray-500">Выбрано</div>
-              <div className="text-lg font-semibold">{selected?.name || "—"}</div>
-              <div className="text-xs text-gray-400">
-                Тип: {selected?.type === "folder" ? "Папка" : "Объект"}
+      {/* Main content */}
+      <div className="grid grid-cols-3 gap-4">
+        {/* Tree */}
+        <div className="col-span-2 bg-white rounded-xl border p-4 max-h-96 overflow-y-auto">
+          {tree ? renderTree(tree) : <div className="text-gray-500">Загрузка...</div>}
+        </div>
+
+        {/* Properties panel */}
+        <div className="bg-white rounded-xl border p-4">
+          <h3 className="font-semibold mb-4">Свойства</h3>
+          {selectedNode ? (
+            <div className="space-y-3 text-sm">
+              <div>
+                <label className="text-gray-600">Название</label>
+                <div className="font-medium">{selectedNode.name}</div>
               </div>
+              {selectedNode.type === 'asset' && (
+                <>
+                  <div>
+                    <label className="text-gray-600">Код</label>
+                    <div className="font-medium">{selectedNode.code || '—'}</div>
+                  </div>
+                  <div>
+                    <label className="text-gray-600">Инв. номер</label>
+                    <div className="font-medium">{selectedNode.inv || '—'}</div>
+                  </div>
+                  <div>
+                    <label className="text-gray-600">Серийный номер</label>
+                    <div className="font-medium">{selectedNode.serial || '—'}</div>
+                  </div>
+                  <div>
+                    <label className="text-gray-600">Местоположение</label>
+                    <div className="font-medium">{selectedNode.location || '—'}</div>
+                  </div>
+                </>
+              )}
+            </div>
+          ) : (
+            <div className="text-gray-500">Ничего не выбрано</div>
+          )}
+        </div>
+      </div>
+
+      {/* Modal */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setIsModalOpen(false)} />
+
+          <form
+            onSubmit={handleSubmit}
+            className="relative bg-white w-full max-w-md rounded-xl shadow-lg p-6 space-y-4 z-10"
+          >
+            <h2 className="text-lg font-semibold">
+              {editingId ? 'Редактировать' : `Добавить ${formData.node_type === 'folder' ? 'папку' : 'оборудование'}`}
+            </h2>
+
+            <div>
+              <label className="text-sm text-gray-600">Название *</label>
+              <input
+                type="text"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                className="w-full border rounded-md px-3 py-2 mt-1 text-sm"
+                required
+              />
             </div>
 
-            {/* fields only for asset */}
-            {selected?.type === "asset" ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {[
-                  ["code", "Код"],
-                  ["inv", "Инвентарный №"],
-                  ["serial", "Заводской №"],
-                  ["location", "Расположение"],
-                ].map(([key, label]) => (
-                  <div key={key} className="space-y-1">
-                    <label className="text-xs text-gray-500">{label}</label>
-                    <input
-                      value={selected?.[key] || ""}
-                      onChange={(e) => updateSelectedField(key, e.target.value)}
-                      className="w-full border rounded-md px-3 py-2 text-sm"
-                      placeholder="—"
-                    />
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-sm text-gray-500">
-                Выбрана папка. Здесь позже можно показать агрегированную статистику по дочерним объектам.
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
+            {formData.node_type === 'asset' && (
+              <>
+                <div>
+                  <label className="text-sm text-gray-600">Код оборудования</label>
+                  <input
+                    type="text"
+                    value={formData.code}
+                    onChange={(e) => setFormData({ ...formData, code: e.target.value })}
+                    placeholder="Например: P-100"
+                    className="w-full border rounded-md px-3 py-2 mt-1 text-sm"
+                  />
+                </div>
 
-      {/* Rename modal */}
-      <RenameModal
-        open={renameOpen}
-        title="Переименовать"
-        initial={findNode(tree, renameTargetId)?.name || ""}
-        onClose={() => setRenameOpen(false)}
-        onSave={async (name) => {
-          await rename(renameTargetId, name)
-          setRenameOpen(false)
-        }}
-      />
+                <div>
+                  <label className="text-sm text-gray-600">Инвентарный номер</label>
+                  <input
+                    type="text"
+                    value={formData.inv}
+                    onChange={(e) => setFormData({ ...formData, inv: e.target.value })}
+                    placeholder="Например: INV-001"
+                    className="w-full border rounded-md px-3 py-2 mt-1 text-sm"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-sm text-gray-600">Серийный номер</label>
+                  <input
+                    type="text"
+                    value={formData.serial}
+                    onChange={(e) => setFormData({ ...formData, serial: e.target.value })}
+                    placeholder="Например: SN-123456"
+                    className="w-full border rounded-md px-3 py-2 mt-1 text-sm"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-sm text-gray-600">Местоположение</label>
+                  <input
+                    type="text"
+                    value={formData.location}
+                    onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                    placeholder="Например: Цех №1"
+                    className="w-full border rounded-md px-3 py-2 mt-1 text-sm"
+                  />
+                </div>
+              </>
+            )}
+
+            <div className="flex gap-2 pt-4">
+              <button
+                type="submit"
+                className="flex-1 bg-slate-900 text-white px-4 py-2 rounded-md text-sm hover:bg-slate-800"
+              >
+                {editingId ? 'Обновить' : 'Создать'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsModalOpen(false)}
+                className="flex-1 border px-4 py-2 rounded-md text-sm hover:bg-gray-50"
+              >
+                Отмена
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   )
 }

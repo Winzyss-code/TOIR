@@ -5,20 +5,25 @@ import {
   Cpu,
   Wrench,
   BarChart3,
+  Calendar,
   Settings,
   ChevronLeft,
   ChevronRight,
 } from "lucide-react"
 
-const menu = [
-  { label: "Главное", path: "/", icon: LayoutDashboard },
-  { label: "Оборудование", path: "/equipment", icon: Cpu },
-  { label: "Заявки", path: "/work-orders", icon: Wrench },
-  { label: "Отчёты", path: "/reports", icon: BarChart3 },
-]
-
 export default function Sidebar() {
   const [collapsed, setCollapsed] = useState(false)
+  
+  const user = JSON.parse(localStorage.getItem("cmms_user") || "{}")
+  const isAdmin = user.role === "admin"
+  
+  const menu = [
+    { label: "Главное", path: "/", icon: LayoutDashboard },
+    ...(isAdmin ? [{ label: "Оборудование", path: "/equipment", icon: Cpu }] : []),
+    { label: "Заявки", path: "/work-orders", icon: Wrench },
+    ...(isAdmin ? [{ label: "Графики ТО", path: "/maintenance-plans", icon: Calendar }] : []),
+    ...(isAdmin ? [{ label: "Отчёты", path: "/reports", icon: BarChart3 }] : []),
+  ]
 
   return (
     <aside

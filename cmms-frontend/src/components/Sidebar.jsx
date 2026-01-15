@@ -9,6 +9,9 @@ import {
   Settings,
   ChevronLeft,
   ChevronRight,
+  Package,
+  Droplet,
+  Zap,
 } from "lucide-react"
 
 export default function Sidebar() {
@@ -22,6 +25,9 @@ export default function Sidebar() {
     ...(isAdmin ? [{ label: "Оборудование", path: "/equipment", icon: Cpu }] : []),
     { label: "Заявки", path: "/work-orders", icon: Wrench },
     ...(isAdmin ? [{ label: "Графики ТО", path: "/maintenance-plans", icon: Calendar }] : []),
+    ...(isAdmin ? [{ label: "Запасные части", path: "/spare-parts", icon: Package }] : []),
+    ...(isAdmin ? [{ label: "Материалы", path: "/materials", icon: Droplet }] : []),
+    ...(isAdmin ? [{ label: "Типы ТО", path: "/maintenance-types", icon: Zap }] : []),
     ...(isAdmin ? [{ label: "Отчёты", path: "/reports", icon: BarChart3 }] : []),
   ]
 

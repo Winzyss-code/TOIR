@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react"
 import { Plus, Trash2, Edit2, Calendar, AlertCircle } from "lucide-react"
-import { MaintenancePlansService } from "../services/maintenancePlans.service"
-import { EquipmentTreeService } from "../services/equipmentTree.service"
+import { api } from "../services/api"
 import Badge from "../components/Badge"
 
 const frequencyTypeLabel = {
@@ -37,34 +36,23 @@ export default function MaintenancePlans() {
   const loadPlans = async () => {
     setIsLoading(true)
     try {
-      const data = await MaintenancePlansService.getAll()
-      setPlans(data || [])
+      const response = await api.get('/maintenance-plans')
+      setPlans(Array.isArray(response.data) ? response.data : [])
     } catch (err) {
       console.error('Error loading plans:', err)
-      alert('Ошибка при загрузке графиков')
+      setPlans([])
     }
     setIsLoading(false)
   }
 
   const loadEquipment = async () => {
     try {
-      const tree = await EquipmentTreeService.getTree()
-      const assets = flattenTree(tree)
-      setEquipment(assets)
+      const response = await api.get('/equipment')
+      setEquipment(Array.isArray(response.data) ? response.data : [])
     } catch (err) {
       console.error('Error loading equipment:', err)
+      setEquipment([])
     }
-  }
-
-  const flattenTree = (node, list = []) => {
-    if (!node) return list
-    if (node.type === 'asset') {
-      list.push({ id: node.id, name: node.name })
-    }
-    if (node.children) {
-      node.children.forEach(child => flattenTree(child, list))
-    }
-    return list
   }
 
   const handleSubmit = async (e) => {
@@ -77,10 +65,10 @@ export default function MaintenancePlans() {
 
     try {
       if (editingId) {
-        await MaintenancePlansService.update(editingId, formData)
+        await api.put(`/maintenance-plans/${editingId}`, formData)
         alert('График обновлен')
       } else {
-        await MaintenancePlansService.create(formData)
+        await api.post('/maintenance-plans', formData)
         alert('График создан')
       }
       
@@ -116,7 +104,7 @@ export default function MaintenancePlans() {
     if (!confirm('Удалить этот график?')) return
     
     try {
-      await MaintenancePlansService.delete(id)
+      await api.delete(`/maintenance-plans/${id}`)
       alert('График удален')
       loadPlans()
     } catch (err) {

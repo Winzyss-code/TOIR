@@ -4,6 +4,7 @@ import pg from 'pg'
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import dotenv from 'dotenv'
+import setupRoutes from './api-routes.js'
 
 dotenv.config()
 
@@ -351,171 +352,6 @@ app.post('/api/equipment/reset', verifyToken, checkRole('admin'), async (req, re
 
 // ==================== MAINTENANCE PLANS ====================
 
-app.get('/api/maintenance-plans', verifyToken, async (req, res) => {
-  try {
-    const result = await pool.query(`
-      SELECT 
-        mp.id,
-        mp.equipment_node_id,
-        mp.equipment_name,
-        mp.frequency_type,
-        mp.frequency_value,
-        mp.description,
-        mp.last_maintenance_date,
-        mp.next_due_date,
-        mp.is_active,
-        mp.created_at,
-        u.full_name as created_by_name
-      FROM maintenance_plans mp
-      LEFT JOIN users u ON mp.created_by = u.id
-      WHERE mp.is_active = true
-      ORDER BY mp.next_due_date ASC
-    `)
-    res.json(result.rows)
-  } catch (err) {
-    console.error('Error fetching maintenance plans:', err)
-    res.status(500).json({ error: 'Ошибка сервера' })
-  }
-})
-
-app.get('/api/maintenance-plans/:id', verifyToken, async (req, res) => {
-  try {
-    const result = await pool.query(`
-      SELECT * FROM maintenance_plans WHERE id = $1
-    `, [req.params.id])
-    
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'План ТО не найден' })
-    }
-    
-    res.json(result.rows[0])
-  } catch (err) {
-    res.status(500).json({ error: 'Ошибка сервера' })
-  }
-})
-
-app.post('/api/maintenance-plans', verifyToken, checkRole('admin'), async (req, res) => {
-  try {
-    const { equipment_node_id, equipment_name, frequency_type, frequency_value, description } = req.body
-    
-    if (!equipment_node_id || !frequency_type || !frequency_value) {
-      return res.status(400).json({ error: 'Обязательные поля: equipment_node_id, frequency_type, frequency_value' })
-    }
-
-    // Вычисляем следующую дату обслуживания на JS стороне
-    let nextDueDate = new Date()
-    
-    if (frequency_type === 'days') {
-      nextDueDate.setDate(nextDueDate.getDate() + frequency_value)
-    } else if (frequency_type === 'weeks') {
-      nextDueDate.setDate(nextDueDate.getDate() + (frequency_value * 7))
-    } else if (frequency_type === 'months') {
-      nextDueDate.setMonth(nextDueDate.getMonth() + frequency_value)
-    } else if (frequency_type === 'hours') {
-      nextDueDate.setHours(nextDueDate.getHours() + frequency_value)
-    }
-
-    const result = await pool.query(`
-      INSERT INTO maintenance_plans 
-      (equipment_node_id, equipment_name, frequency_type, frequency_value, description, created_by, next_due_date)
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
-      RETURNING *
-    `, [equipment_node_id, equipment_name, frequency_type, frequency_value, description || null, req.user.id, nextDueDate])
-    
-    res.status(201).json(result.rows[0])
-  } catch (err) {
-    console.error('Error creating maintenance plan:', err)
-    res.status(500).json({ error: 'Ошибка сервера', details: err.message })
-  }
-})
-
-app.put('/api/maintenance-plans/:id', verifyToken, checkRole('admin'), async (req, res) => {
-  try {
-    const { equipment_name, frequency_type, frequency_value, description, is_active, last_maintenance_date } = req.body
-    
-    // Вычисляем новую следующую дату если изменили частоту
-    let updateFields = []
-    let params = []
-    let paramIndex = 1
-
-    if (equipment_name !== undefined) {
-      updateFields.push(`equipment_name = $${paramIndex++}`)
-      params.push(equipment_name)
-    }
-    if (frequency_type !== undefined) {
-      updateFields.push(`frequency_type = $${paramIndex++}`)
-      params.push(frequency_type)
-    }
-    if (frequency_value !== undefined) {
-      updateFields.push(`frequency_value = $${paramIndex++}`)
-      params.push(frequency_value)
-    }
-    if (description !== undefined) {
-      updateFields.push(`description = $${paramIndex++}`)
-      params.push(description)
-    }
-    if (is_active !== undefined) {
-      updateFields.push(`is_active = $${paramIndex++}`)
-      params.push(is_active)
-    }
-    if (last_maintenance_date !== undefined) {
-      updateFields.push(`last_maintenance_date = $${paramIndex++}`)
-      params.push(last_maintenance_date)
-      
-      // Если обновили last_maintenance_date, пересчитаем next_due_date
-      let freq = await pool.query('SELECT frequency_type, frequency_value FROM maintenance_plans WHERE id = $1', [req.params.id])
-      if (freq.rows.length > 0) {
-        let nextDate = new Date(last_maintenance_date)
-        const ft = frequency_type || freq.rows[0].frequency_type
-        const fv = frequency_value || freq.rows[0].frequency_value
-        
-        if (ft === 'days') nextDate.setDate(nextDate.getDate() + fv)
-        else if (ft === 'weeks') nextDate.setDate(nextDate.getDate() + (fv * 7))
-        else if (ft === 'months') nextDate.setMonth(nextDate.getMonth() + fv)
-        
-        updateFields.push(`next_due_date = $${paramIndex++}`)
-        params.push(nextDate)
-      }
-    }
-
-    updateFields.push(`updated_at = CURRENT_TIMESTAMP`)
-    params.push(req.params.id)
-
-    const result = await pool.query(`
-      UPDATE maintenance_plans 
-      SET ${updateFields.join(', ')}
-      WHERE id = $${paramIndex}
-      RETURNING *
-    `, params)
-    
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'План ТО не найден' })
-    }
-    
-    res.json(result.rows[0])
-  } catch (err) {
-    console.error('Error updating maintenance plan:', err)
-    res.status(500).json({ error: 'Ошибка сервера' })
-  }
-})
-
-app.delete('/api/maintenance-plans/:id', verifyToken, checkRole('admin'), async (req, res) => {
-  try {
-    const result = await pool.query(
-      'DELETE FROM maintenance_plans WHERE id = $1 RETURNING id',
-      [req.params.id]
-    )
-    
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'План ТО не найден' })
-    }
-    
-    res.json({ message: 'План ТО удален', id: req.params.id })
-  } catch (err) {
-    res.status(500).json({ error: 'Ошибка сервера' })
-  }
-})
-
 // ==================== AUTO-GENERATE WORK ORDERS ====================
 
 // Функция для создания заявок по графикам ТО (запускается например раз в час)
@@ -567,6 +403,9 @@ app.post('/api/maintenance-plans/auto-create-orders', verifyToken, checkRole('ad
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() })
 })
+
+// Setup TOIR routes
+setupRoutes(app, pool, verifyToken, checkRole)
 
 // Start
 app.listen(PORT, () => {

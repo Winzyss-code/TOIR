@@ -17,6 +17,7 @@ export default function Materials() {
     description: '',
     unit_of_measure: 'л',
     unit_price: '',
+    quantity: '',
     supplier: '',
     category: ''
   });
@@ -44,6 +45,7 @@ export default function Materials() {
       description: '',
       unit_of_measure: 'л',
       unit_price: '',
+      quantity: '',
       supplier: '',
       category: ''
     });
@@ -122,6 +124,7 @@ export default function Materials() {
                   <th className="px-6 py-3 text-left text-sm font-medium text-gray-700">Категория</th>
                   <th className="px-6 py-3 text-left text-sm font-medium text-gray-700">Ед. изм.</th>
                   <th className="px-6 py-3 text-left text-sm font-medium text-gray-700">Цена</th>
+                  <th className="px-6 py-3 text-left text-sm font-medium text-gray-700">Количество</th>
                   <th className="px-6 py-3 text-left text-sm font-medium text-gray-700">Поставщик</th>
                   <th className="px-6 py-3 text-left text-sm font-medium text-gray-700">Действия</th>
                 </tr>
@@ -134,6 +137,7 @@ export default function Materials() {
                     <td className="px-6 py-4 text-sm text-gray-600">{material.category || '-'}</td>
                     <td className="px-6 py-4 text-sm text-gray-600">{material.unit_of_measure}</td>
                     <td className="px-6 py-4 text-sm text-gray-900">{material.unit_price ? parseFloat(material.unit_price).toFixed(2) : '0.00'} ₽</td>
+                    <td className="px-6 py-4 text-sm text-gray-600">{material.quantity || '-'}</td>
                     <td className="px-6 py-4 text-sm text-gray-600">{material.supplier || '-'}</td>
                     <td className="px-6 py-4 text-sm flex gap-2">
                       <button
@@ -196,6 +200,8 @@ export default function Materials() {
                   />
                 </div>
 
+                
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Категория</label>
                   <input
@@ -225,6 +231,16 @@ export default function Materials() {
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                       value={formData.unit_price}
                       onChange={(e) => setFormData({ ...formData, unit_price: e.target.value })}
+                    />
+                  </div>
+                    <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Количество</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      value={formData.quantity}
+                      onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
                     />
                   </div>
                 </div>

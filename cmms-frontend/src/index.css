@@ -1,3 +1,21 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+.erp-input {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid #cbd5e1;
+  background: white;
+  outline: none;
+}
+
+.erp-input:focus {
+  border-color: #2563eb;
+}
+
+.erp-checkbox {
+  width: 16px;
+  height: 16px;
+  border: 1px solid #94a3b8;
+}

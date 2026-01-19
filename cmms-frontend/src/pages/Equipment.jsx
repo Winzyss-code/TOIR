@@ -2,6 +2,7 @@ import { useEffect, useState } from "react"
 import { Plus, Trash2, Edit2, Package } from "lucide-react"
 import { EquipmentTreeService } from "../services/equipmentTree.service"
 import Badge from "../components/Badge"
+import { useNavigate } from "react-router-dom"
 
 export default function Equipment() {
   const [tree, setTree] = useState(null)
@@ -17,6 +18,9 @@ export default function Equipment() {
     serial: '',
     location: ''
   })
+
+  const navigate = useNavigate()
+
 
   useEffect(() => {
     loadTree()
@@ -140,11 +144,17 @@ export default function Equipment() {
     return (
       <div key={node.id} style={{ marginLeft: `${depth * 20}px` }}>
         <div
-          onClick={() => setSelectedId(node.id)}
-          className={`py-2 px-3 rounded cursor-pointer flex items-center gap-2 ${
-            isSelected ? 'bg-blue-100 border-l-4 border-blue-600' : 'hover:bg-gray-100'
-          }`}
-        >
+            onClick={() => setSelectedId(node.id)}
+              onDoubleClick={() => {
+                  if (node.type === "asset") {
+                      navigate(`/equipment/${node.id}`)
+                  }
+                }}
+  className={`py-2 px-3 rounded cursor-pointer flex items-center gap-2 ${
+    isSelected ? 'bg-blue-100 border-l-4 border-blue-600' : 'hover:bg-gray-100'
+  }`}
+>
+
           <Package size={18} className={isAsset ? 'text-orange-500' : 'text-gray-500'} />
           <div className="flex-1">
             <div className="font-medium">{node.name}</div>

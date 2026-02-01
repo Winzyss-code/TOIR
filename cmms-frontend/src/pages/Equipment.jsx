@@ -20,6 +20,7 @@ export default function Equipment() {
   })
 
   const navigate = useNavigate()
+  const [draggedId, setDraggedId] = useState(null)
 
 
   useEffect(() => {
@@ -76,6 +77,48 @@ export default function Equipment() {
     setEditingId(selectedNode.id)
     setIsModalOpen(true)
   }
+  const removeNode = (node, id) => {
+  if (!node.children) return node
+
+  node.children = node.children.filter(child => child.id !== id)
+  node.children.forEach(child => removeNode(child, id))
+  return node
+}
+
+const findNodeById = (node, id) => {
+  if (node.id === id) return node
+  for (const child of node.children || []) {
+    const found = findNodeById(child, id)
+    if (found) return found
+  }
+  return null
+}
+
+
+
+  const handleDrop = (targetId) => {
+  if (!draggedId || draggedId === targetId) return
+
+  const newTree = structuredClone(tree)
+
+  const draggedNode = findNodeById(newTree, draggedId)
+  const targetNode = findNodeById(newTree, targetId)
+
+  if (!draggedNode || !targetNode) return
+
+  // ❌ нельзя кидать внутрь asset
+  if (targetNode.type === 'asset') return
+
+  // удаляем из старого места
+  removeNode(newTree, draggedId)
+
+  // добавляем в новое
+  targetNode.children = targetNode.children || []
+  targetNode.children.push(draggedNode)
+
+  setTree(newTree)
+  setDraggedId(null)
+}
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -144,12 +187,17 @@ export default function Equipment() {
     return (
       <div key={node.id} style={{ marginLeft: `${depth * 20}px` }}>
         <div
+            draggable
+            onDragStart={() => setDraggedId(node.id)}
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={() => handleDrop(node.id)}
             onClick={() => setSelectedId(node.id)}
-              onDoubleClick={() => {
-                  if (node.type === "asset") {
-                      navigate(`/equipment/${node.id}`)
-                  }
-                }}
+            onDoubleClick={() => {
+            if (node.type === "asset") {
+                navigate(`/equipment/${node.id}`)
+              }
+              }}
+  
   className={`py-2 px-3 rounded cursor-pointer flex items-center gap-2 ${
     isSelected ? 'bg-blue-100 border-l-4 border-blue-600' : 'hover:bg-gray-100'
   }`}
